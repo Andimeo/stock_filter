@@ -1,7 +1,11 @@
 package me.andimeo;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.List;
+
 public class DataRecord {
-	private int code;
 	private int year;
 	private int month;
 	private int day;
@@ -10,14 +14,68 @@ public class DataRecord {
 	private double minPrice;
 	private double closePrice;
 	private double ratio;
-	private int volume;
+	private double amount; // 总额
+	private int volume; // 总量
 
-	public int getCode() {
-		return code;
+	public static double toDouble(byte[] bytes, int offset, int length) {
+		return ByteBuffer.wrap(bytes, offset, length).order(ByteOrder.LITTLE_ENDIAN).getFloat();
 	}
 
-	public void setCode(int code) {
-		this.code = code;
+	public static int toInt(byte[] bytes, int offset, int length) {
+		return ByteBuffer.wrap(bytes, offset, length).order(ByteOrder.LITTLE_ENDIAN).getInt();
+	}
+
+	public static List<DataRecord> from(byte[] bytes) {
+		int num = bytes.length / 32;
+		List<DataRecord> list = new ArrayList<>();
+		for (int i = 0; i < num; i++) {
+			int offset = i * 32;
+			DataRecord record = new DataRecord();
+			// date
+			int value = toInt(bytes, offset, 4);
+			record.setYear(value / 10000);
+			record.setMonth(value % 10000 / 100);
+			record.setDay(value % 100);
+
+			// open price
+			value = toInt(bytes, offset + 4, 4);
+			record.setOpenPrice(value / 100.0);
+
+			// max price
+			value = toInt(bytes, offset + 8, 4);
+			record.setMaxPrice(value / 100.0);
+
+			// min price
+			value = toInt(bytes, offset + 12, 4);
+			record.setMinPrice(value / 100.0);
+
+			// close price
+			value = toInt(bytes, offset + 16, 4);
+			record.setClosePrice(value / 100.0);
+
+			// amount
+			double v = toDouble(bytes, offset + 20, 4);
+			record.setAmount(v / 10.0);
+
+			// volume
+			value = toInt(bytes, offset + 24, 4);
+			record.setVolume(value);
+
+			// unused
+
+			if (i == 0) {
+				record.setRatio(0);
+			} else {
+				int index = list.size() - 1;
+				double preClosePrice = list.get(index).getClosePrice();
+				record.setRatio((record.getClosePrice() - preClosePrice) / preClosePrice);
+			}
+			list.add(record);
+		}
+		return list;
+	}
+
+	private DataRecord() {
 	}
 
 	public int getYear() {
@@ -90,5 +148,18 @@ public class DataRecord {
 
 	public void setVolume(int volume) {
 		this.volume = volume;
+	}
+
+	public double getAmount() {
+		return amount;
+	}
+
+	public void setAmount(double amount) {
+		this.amount = amount;
+	}
+
+	public String toString() {
+		return "" + getYear() + "" + getMonth() + "" + getDay() + " " + getOpenPrice() + " " + getMaxPrice() + " "
+				+ getMinPrice() + " " + getClosePrice() + " " + getRatio() + " " + getAmount() + " " + getVolume();
 	}
 }

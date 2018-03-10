@@ -1,6 +1,7 @@
 package me.andimeo;
 
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.EventQueue;
 import java.awt.FlowLayout;
@@ -9,8 +10,11 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.swing.ButtonGroup;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
@@ -18,6 +22,7 @@ import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JList;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
@@ -25,9 +30,25 @@ import javax.swing.JTextField;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 
+import me.andimeo.FilterCondition.LineType;
+import me.andimeo.FilterCondition.PositionType;
+
 public class GUI {
 
 	private JFrame frame;
+	private DataParser parser;
+
+	// stocks components
+	JList<Stock> batchesList;
+	JList<Stock> stocksList;
+
+	// time unit inputs
+	JRadioButton dayRadioButton;
+	JRadioButton weekRadioButton;
+	JRadioButton monthRadioButton;
+
+	// data source inputs
+	private JComboBox<String> dataSourceComboBox;
 
 	// date inputs
 	private JComboBox<String> yearComboBox;
@@ -66,6 +87,18 @@ public class GUI {
 	 * Create the application.
 	 */
 	public GUI() {
+		initialize();
+	}
+
+	/**
+	 * Initialize the contents of the frame.
+	 */
+	private void initialize() {
+		frame = new JFrame();
+		parser = new DataParser();
+
+		dataSourceComboBox = new JComboBox<>();
+
 		yearComboBox = new JComboBox<>();
 		monthComboBox = new JComboBox<>();
 		dayComboBox = new JComboBox<>();
@@ -80,18 +113,17 @@ public class GUI {
 
 		lowerBoundTextField = new JTextField();
 		upperBoundTextField = new JTextField();
-		initialize();
-	}
 
-	/**
-	 * Initialize the contents of the frame.
-	 */
-	private void initialize() {
-		frame = new JFrame();
-		frame.setBounds(200, 200, 800, 600);
+		frame.setBounds(100, 100, 1000, 600);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		frame.getContentPane().setLayout(new BorderLayout());
 
+		frame.getContentPane().add(topPanel(), BorderLayout.NORTH);
+		frame.getContentPane().add(centerPanel(), BorderLayout.CENTER);
+
+	}
+
+	private JPanel topPanel() {
 		JPanel topPanel = new JPanel();
 		topPanel.setLayout(new FlowLayout());
 		JButton chooseButton = new JButton("选择");
@@ -111,6 +143,8 @@ public class GUI {
 					File file = fileChooser.getSelectedFile();
 					try {
 						dirTextField.setText(file.getCanonicalPath());
+						System.out.println(parser.parse(file));
+						JOptionPane.showMessageDialog(frame, "数据加载完毕");
 					} catch (IOException e) {
 						e.printStackTrace();
 					}
@@ -120,46 +154,114 @@ public class GUI {
 
 		topPanel.add(dirTextField);
 		topPanel.add(chooseButton);
-		frame.getContentPane().add(topPanel, BorderLayout.NORTH);
+		return topPanel;
+	}
 
+	private JPanel centerPanel() {
 		JPanel centerPanel = new JPanel();
 		centerPanel.setLayout(new GridLayout(1, 2));
-		frame.getContentPane().add(centerPanel, BorderLayout.CENTER);
+		centerPanel.add(leftPanel());
+		centerPanel.add(rightPanel());
+		return centerPanel;
+	}
 
+	private JPanel leftPanel() {
 		JPanel leftPanel = new JPanel();
 		leftPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
 		leftPanel.setLayout(new BorderLayout(10, 0));
-		centerPanel.add(leftPanel);
 
-		JScrollPane batchesScrollPane = new JScrollPane();
+		batchesList = new JList<>();
+		batchesList.setPreferredSize(new Dimension(50, -1));
+		JScrollPane batchesScrollPane = new JScrollPane(batchesList);
 		leftPanel.add(batchesScrollPane, BorderLayout.WEST);
-		batchesScrollPane.setPreferredSize(new Dimension(20, 500));
-		JList<String> batchesList = new JList<>();
-		batchesList.setPreferredSize(new Dimension(20, 500));
-		batchesScrollPane.add(batchesList);
+		batchesScrollPane.setPreferredSize(new Dimension(50, -1));
 
-		JScrollPane stocksScrollPane = new JScrollPane();
+		stocksList = new JList<>();
+		stocksList.setCellRenderer(new DefaultListCellRenderer() {
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected,
+					boolean cellHasFocus) {
+				Component renderer = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+				if (renderer instanceof JLabel && value instanceof Stock) {
+					// Here value will be of the Type 'CD'
+					((JLabel) renderer).setText(((Stock) value).getCode());
+				}
+				return renderer;
+			}
+		});
+		JScrollPane stocksScrollPane = new JScrollPane(stocksList);
 		leftPanel.add(stocksScrollPane, BorderLayout.CENTER);
-		stocksScrollPane.setPreferredSize(new Dimension(200, 500));
-		JList<String> stocksList = new JList<>();
-		stocksList.setPreferredSize(new Dimension(200, 500));
-		stocksScrollPane.setViewportView(stocksList);
 
-		DefaultListModel<String> listModel = new DefaultListModel<>();
-		listModel.addElement("Jane Doe");
-		listModel.addElement("John Smith");
-		listModel.addElement("Kathy Green");
+		DefaultListModel<Stock> listModel = new DefaultListModel<>();
 		stocksList.setModel(listModel);
 
+		JPanel bottomPanel = new JPanel();
+		bottomPanel.setLayout(new FlowLayout());
+		dataSourceComboBox.addItem("载入所有数据");
+		dataSourceComboBox.addItem("载入沪市数据");
+		dataSourceComboBox.addItem("载入深市数据");
+		dataSourceComboBox.addItem("载入自定义数据");
+
+		JButton clearButton = new JButton("清空");
+		JButton saveButton = new JButton("保存");
+		JButton loadButton = new JButton("载入");
+
+		bottomPanel.add(clearButton);
+		bottomPanel.add(saveButton);
+		bottomPanel.add(dataSourceComboBox);
+		bottomPanel.add(loadButton);
+
+		// clear
+		clearButton.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				DefaultListModel<Stock> listModel = (DefaultListModel<Stock>) stocksList.getModel();
+				listModel.removeAllElements();
+			}
+		});
+		// TODO: save
+
+		// load
+		loadButton.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				DefaultListModel<Stock> listModel = (DefaultListModel<Stock>) stocksList.getModel();
+				List<Stock> stocks;
+				if (dataSourceComboBox.getSelectedIndex() == 0) {
+					stocks = parser.getAllStocks();
+				} else if (dataSourceComboBox.getSelectedIndex() == 1) {
+					stocks = parser.getStocksFromSpecificMarket("sh");
+				} else if (dataSourceComboBox.getSelectedIndex() == 2) {
+					stocks = parser.getStocksFromSpecificMarket("sz");
+				} else {
+					stocks = new ArrayList<>();
+				}
+				for (Stock stock : stocks) {
+					listModel.addElement(stock);
+				}
+			}
+		});
+
+		bottomPanel.add(clearButton);
+		bottomPanel.add(saveButton);
+		bottomPanel.add(dataSourceComboBox);
+		bottomPanel.add(loadButton);
+		leftPanel.add(bottomPanel, BorderLayout.SOUTH);
+		return leftPanel;
+	}
+
+	private JPanel rightPanel() {
 		JPanel rightPanel = new JPanel();
-		centerPanel.add(rightPanel);
 		rightPanel.setLayout(new GridLayout(5, 0, 10, 10));
 
 		rightPanel.add(timeUnitPanel());
 		rightPanel.add(datePanel());
 		rightPanel.add(positionPanel());
 		rightPanel.add(turnoverPanel());
-
+		rightPanel.add(filterPanel());
+		return rightPanel;
 	}
 
 	private JPanel timeUnitPanel() {
@@ -168,9 +270,9 @@ public class GUI {
 		TitledBorder border = new TitledBorder("日/周/月线");
 		timeUnitPanel.setBorder(border);
 
-		JRadioButton dayRadioButton = new JRadioButton("日线");
-		JRadioButton weekRadioButton = new JRadioButton("周线");
-		JRadioButton monthRadioButton = new JRadioButton("月线");
+		dayRadioButton = new JRadioButton("日线");
+		weekRadioButton = new JRadioButton("周线");
+		monthRadioButton = new JRadioButton("月线");
 		ButtonGroup buttonGroup = new ButtonGroup();
 		buttonGroup.add(dayRadioButton);
 		buttonGroup.add(weekRadioButton);
@@ -289,5 +391,94 @@ public class GUI {
 		turnoverPanel.add(upperBoundTextField);
 		upperBoundTextField.setColumns(5);
 		return turnoverPanel;
+	}
+
+	private JPanel filterPanel() {
+		JPanel filterPanel = new JPanel();
+		filterPanel.setLayout(new FlowLayout());
+
+		JButton saveButton = new JButton("保存");
+		JButton loadButton = new JButton("载入");
+		JButton filterButton = new JButton("筛选");
+
+		// TODO: save
+
+		// TODO: load
+
+		// TODO: filter
+		filterButton.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				FilterCondition condition = new FilterCondition();
+				if (dayRadioButton.isSelected()) {
+					condition.setLineType(LineType.DAY);
+				} else if (weekRadioButton.isSelected()) {
+					condition.setLineType(LineType.WEEK);
+				} else if (monthRadioButton.isSelected()) {
+					condition.setLineType(LineType.MONTH);
+				} else {
+					JOptionPane.showMessageDialog(frame, "请选择 日/周/月线类型");
+					return;
+				}
+
+				String yearStr = (String) yearComboBox.getSelectedItem();
+				condition.setYear(Integer.parseInt(yearStr));
+				String monthStr = (String) monthComboBox.getSelectedItem();
+				condition.setMonth(Integer.parseInt(monthStr));
+				String dayStr = (String) dayComboBox.getSelectedItem();
+				condition.setDay(Integer.parseInt(dayStr));
+
+				if (longPositionRadioButton.isSelected()) {
+					condition.setPositionType(PositionType.LONG);
+					List<Integer> positions = new ArrayList<Integer>();
+					for (int i = 0; i < 4; i++) {
+						String s = longPositionTextFields[i].getText();
+						if (Utils.isInt(s)) {
+							positions.add(Integer.parseInt(s));
+						}
+					}
+					condition.setPositions(positions);
+				} else if (shortPositionRadioButton.isSelected()) {
+					condition.setPositionType(PositionType.SHORT);
+					List<Integer> positions = new ArrayList<Integer>();
+					for (int i = 0; i < 4; i++) {
+						String s = shortPositionTextFields[i].getText();
+						if (Utils.isInt(s)) {
+							positions.add(Integer.parseInt(s));
+						}
+					}
+					condition.setPositions(positions);
+				} else {
+					condition.setPositionType(PositionType.NONE);
+					condition.setPositions(new ArrayList<Integer>());
+				}
+
+				String s = lowerBoundTextField.getText();
+				if (Utils.isDouble(s)) {
+					condition.setLowerLimit(Double.parseDouble(s));
+				} else {
+					condition.setLowerLimit(Double.NEGATIVE_INFINITY);
+				}
+
+				s = upperBoundTextField.getText();
+				if (Utils.isDouble(s)) {
+					condition.setUpperLimit(Double.parseDouble(s));
+				} else {
+					condition.setUpperLimit(Double.POSITIVE_INFINITY);
+				}
+
+				DefaultListModel<Stock> listModel = (DefaultListModel<Stock>) stocksList.getModel();
+				List<Stock> stocks = condition.filter(listModel.elements());
+				listModel.removeAllElements();
+				for (Stock stock : stocks) {
+					listModel.addElement(stock);
+				}
+			}
+		});
+
+		filterPanel.add(saveButton);
+		filterPanel.add(loadButton);
+		filterPanel.add(filterButton);
+		return filterPanel;
 	}
 }

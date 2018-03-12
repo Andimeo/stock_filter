@@ -12,6 +12,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import javax.swing.ButtonGroup;
 import javax.swing.DefaultListCellRenderer;
@@ -144,6 +145,20 @@ public class GUI {
 					try {
 						dirTextField.setText(file.getCanonicalPath());
 						System.out.println(parser.parse(file));
+						Set<Integer> yearSets = parser.yearSets();
+						for (int year : yearSets) {
+							yearComboBox.addItem(String.valueOf(year));
+						}
+						for (int i = 1; i < 13; i++) {
+							monthComboBox.addItem(String.valueOf(i));
+						}
+						for (int i = 1; i < 32; i++) {
+							dayComboBox.addItem(String.valueOf(i));
+						}
+						TradingDate lastDate = parser.getLastDate();
+						yearComboBox.setSelectedItem(String.valueOf(lastDate.year));
+						monthComboBox.setSelectedItem(String.valueOf(lastDate.month));
+						dayComboBox.setSelectedItem(String.valueOf(lastDate.day));
 						JOptionPane.showMessageDialog(frame, "数据加载完毕");
 					} catch (IOException e) {
 						e.printStackTrace();
@@ -185,7 +200,6 @@ public class GUI {
 					boolean cellHasFocus) {
 				Component renderer = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
 				if (renderer instanceof JLabel && value instanceof Stock) {
-					// Here value will be of the Type 'CD'
 					((JLabel) renderer).setText(((Stock) value).getCode());
 				}
 				return renderer;
@@ -422,11 +436,17 @@ public class GUI {
 				}
 
 				String yearStr = (String) yearComboBox.getSelectedItem();
-				condition.setYear(Integer.parseInt(yearStr));
+				int year = Integer.parseInt(yearStr);
 				String monthStr = (String) monthComboBox.getSelectedItem();
-				condition.setMonth(Integer.parseInt(monthStr));
+				int month = Integer.parseInt(monthStr);
 				String dayStr = (String) dayComboBox.getSelectedItem();
-				condition.setDay(Integer.parseInt(dayStr));
+				int day = Integer.parseInt(dayStr);
+				if (!parser.isLegalTradingDate(year, month, day)) {
+					JOptionPane.showMessageDialog(frame, "日期不合法");
+					return;
+				}
+				TradingDate date = new TradingDate(year, month, day);
+				condition.setDate(date);
 
 				if (longPositionRadioButton.isSelected()) {
 					condition.setPositionType(PositionType.LONG);
@@ -468,10 +488,18 @@ public class GUI {
 				}
 
 				DefaultListModel<Stock> listModel = (DefaultListModel<Stock>) stocksList.getModel();
-				List<Stock> stocks = condition.filter(listModel.elements());
-				listModel.removeAllElements();
-				for (Stock stock : stocks) {
-					listModel.addElement(stock);
+				List<Stock> inputs = new ArrayList<>();
+				for (int i = 0; i < listModel.getSize(); i++) {
+					inputs.add(listModel.get(i));
+				}
+				List<Stock> outputs = condition.filter(inputs);
+				if (!outputs.isEmpty()) {
+					listModel.removeAllElements();
+					for (Stock stock : outputs) {
+						listModel.addElement(stock);
+					}
+				} else {
+					JOptionPane.showMessageDialog(frame, "没有符合条件的股票");
 				}
 			}
 		});

@@ -6,9 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class DataRecord {
-	private int year;
-	private int month;
-	private int day;
+	private TradingDate date;
 	private double openPrice;
 	private double maxPrice;
 	private double minPrice;
@@ -33,9 +31,10 @@ public class DataRecord {
 			DataRecord record = new DataRecord();
 			// date
 			int value = toInt(bytes, offset, 4);
-			record.setYear(value / 10000);
-			record.setMonth(value % 10000 / 100);
-			record.setDay(value % 100);
+			int year = value / 10000;
+			int month = value % 10000 / 100;
+			int day = value % 100;
+			record.setDate(new TradingDate(year, month, day));
 
 			// open price
 			value = toInt(bytes, offset + 4, 4);
@@ -76,30 +75,6 @@ public class DataRecord {
 	}
 
 	private DataRecord() {
-	}
-
-	public int getYear() {
-		return year;
-	}
-
-	public void setYear(int year) {
-		this.year = year;
-	}
-
-	public int getMonth() {
-		return month;
-	}
-
-	public void setMonth(int month) {
-		this.month = month;
-	}
-
-	public int getDay() {
-		return day;
-	}
-
-	public void setDay(int day) {
-		this.day = day;
 	}
 
 	public double getOpenPrice() {
@@ -159,7 +134,15 @@ public class DataRecord {
 	}
 
 	public String toString() {
-		return "" + getYear() + "" + getMonth() + "" + getDay() + " " + getOpenPrice() + " " + getMaxPrice() + " "
-				+ getMinPrice() + " " + getClosePrice() + " " + getRatio() + " " + getAmount() + " " + getVolume();
+		return "" + getDate() + " " + getOpenPrice() + " " + getMaxPrice() + " " + getMinPrice() + " " + getClosePrice()
+				+ " " + getRatio() + " " + getAmount() + " " + getVolume();
+	}
+
+	public TradingDate getDate() {
+		return date;
+	}
+
+	public void setDate(TradingDate date) {
+		this.date = date;
 	}
 }

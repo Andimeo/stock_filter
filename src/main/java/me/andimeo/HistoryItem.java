@@ -3,17 +3,8 @@ package me.andimeo;
 import java.util.List;
 
 public class HistoryItem {
-	private int index;
 	private FilterCondition condition;
 	private List<Stock> stocks;
-
-	public int getIndex() {
-		return index;
-	}
-
-	public void setIndex(int index) {
-		this.index = index;
-	}
 
 	public FilterCondition getCondition() {
 		return condition;

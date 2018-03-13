@@ -37,7 +37,9 @@ import me.andimeo.FilterCondition.PositionType;
 public class GUI {
 
 	private JFrame frame;
-	private DataParser parser;
+	private DataParser dataParser;
+	private HistoryManager historyManager;
+	private CodeStockMap codeStockMap;
 
 	// stocks components
 	JList<Stock> batchesList;
@@ -86,17 +88,23 @@ public class GUI {
 
 	/**
 	 * Create the application.
+	 * 
+	 * @throws IOException
 	 */
-	public GUI() {
+	public GUI() throws IOException {
 		initialize();
 	}
 
 	/**
 	 * Initialize the contents of the frame.
+	 * 
+	 * @throws IOException
 	 */
-	private void initialize() {
+	private void initialize() throws IOException {
 		frame = new JFrame();
-		parser = new DataParser();
+		dataParser = new DataParser();
+		historyManager = new HistoryManager();
+		codeStockMap = CodeStockMap.instance();
 
 		dataSourceComboBox = new JComboBox<>();
 
@@ -144,8 +152,8 @@ public class GUI {
 					File file = fileChooser.getSelectedFile();
 					try {
 						dirTextField.setText(file.getCanonicalPath());
-						System.out.println(parser.parse(file));
-						Set<Integer> yearSets = parser.yearSets();
+						System.out.println(dataParser.parse(file));
+						Set<Integer> yearSets = dataParser.yearSets();
 						for (int year : yearSets) {
 							yearComboBox.addItem(String.valueOf(year));
 						}
@@ -155,7 +163,7 @@ public class GUI {
 						for (int i = 1; i < 32; i++) {
 							dayComboBox.addItem(String.valueOf(i));
 						}
-						TradingDate lastDate = parser.getLastDate();
+						TradingDate lastDate = dataParser.getLastDate();
 						yearComboBox.setSelectedItem(String.valueOf(lastDate.year));
 						monthComboBox.setSelectedItem(String.valueOf(lastDate.month));
 						dayComboBox.setSelectedItem(String.valueOf(lastDate.day));
@@ -200,7 +208,9 @@ public class GUI {
 					boolean cellHasFocus) {
 				Component renderer = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
 				if (renderer instanceof JLabel && value instanceof Stock) {
-					((JLabel) renderer).setText(((Stock) value).getCode());
+					Stock stock = (Stock) value;
+					String text = stock.getCode() + "\t" + codeStockMap.getStockName(stock.getCode());
+					((JLabel) renderer).setText(text);
 				}
 				return renderer;
 			}
@@ -220,7 +230,7 @@ public class GUI {
 
 		JButton clearButton = new JButton("清空");
 		JButton saveButton = new JButton("保存");
-		JButton loadButton = new JButton("载入");
+		JButton loadButton = new JButton("添加");
 
 		bottomPanel.add(clearButton);
 		bottomPanel.add(saveButton);
@@ -244,11 +254,11 @@ public class GUI {
 				DefaultListModel<Stock> listModel = (DefaultListModel<Stock>) stocksList.getModel();
 				List<Stock> stocks;
 				if (dataSourceComboBox.getSelectedIndex() == 0) {
-					stocks = parser.getAllStocks();
+					stocks = dataParser.getAllStocks();
 				} else if (dataSourceComboBox.getSelectedIndex() == 1) {
-					stocks = parser.getStocksFromSpecificMarket("sh");
+					stocks = dataParser.getStocksFromSpecificMarket("sh");
 				} else if (dataSourceComboBox.getSelectedIndex() == 2) {
-					stocks = parser.getStocksFromSpecificMarket("sz");
+					stocks = dataParser.getStocksFromSpecificMarket("sz");
 				} else {
 					stocks = new ArrayList<>();
 				}
@@ -422,78 +432,25 @@ public class GUI {
 		// TODO: filter
 		filterButton.addActionListener(new ActionListener() {
 			@Override
-			public void actionPerformed(ActionEvent e) {
-				FilterCondition condition = new FilterCondition();
-				if (dayRadioButton.isSelected()) {
-					condition.setLineType(LineType.DAY);
-				} else if (weekRadioButton.isSelected()) {
-					condition.setLineType(LineType.WEEK);
-				} else if (monthRadioButton.isSelected()) {
-					condition.setLineType(LineType.MONTH);
-				} else {
+			public void actionPerformed(ActionEvent event) {
+				FilterCondition condition = null;
+				try {
+					condition = generateFilterCondition();
+				} catch (TimeUnitException e) {
 					JOptionPane.showMessageDialog(frame, "请选择 日/周/月线类型");
 					return;
-				}
-
-				String yearStr = (String) yearComboBox.getSelectedItem();
-				int year = Integer.parseInt(yearStr);
-				String monthStr = (String) monthComboBox.getSelectedItem();
-				int month = Integer.parseInt(monthStr);
-				String dayStr = (String) dayComboBox.getSelectedItem();
-				int day = Integer.parseInt(dayStr);
-				if (!parser.isLegalTradingDate(year, month, day)) {
+				} catch (DateException e) {
 					JOptionPane.showMessageDialog(frame, "日期不合法");
 					return;
 				}
-				TradingDate date = new TradingDate(year, month, day);
-				condition.setDate(date);
 
-				if (longPositionRadioButton.isSelected()) {
-					condition.setPositionType(PositionType.LONG);
-					List<Integer> positions = new ArrayList<Integer>();
-					for (int i = 0; i < 4; i++) {
-						String s = longPositionTextFields[i].getText();
-						if (Utils.isInt(s)) {
-							positions.add(Integer.parseInt(s));
-						}
-					}
-					condition.setPositions(positions);
-				} else if (shortPositionRadioButton.isSelected()) {
-					condition.setPositionType(PositionType.SHORT);
-					List<Integer> positions = new ArrayList<Integer>();
-					for (int i = 0; i < 4; i++) {
-						String s = shortPositionTextFields[i].getText();
-						if (Utils.isInt(s)) {
-							positions.add(Integer.parseInt(s));
-						}
-					}
-					condition.setPositions(positions);
-				} else {
-					condition.setPositionType(PositionType.NONE);
-					condition.setPositions(new ArrayList<Integer>());
-				}
-
-				String s = lowerBoundTextField.getText();
-				if (Utils.isDouble(s)) {
-					condition.setLowerLimit(Double.parseDouble(s));
-				} else {
-					condition.setLowerLimit(Double.NEGATIVE_INFINITY);
-				}
-
-				s = upperBoundTextField.getText();
-				if (Utils.isDouble(s)) {
-					condition.setUpperLimit(Double.parseDouble(s));
-				} else {
-					condition.setUpperLimit(Double.POSITIVE_INFINITY);
-				}
+				List<Stock> inputs = collectStocksList();
+				List<Stock> outputs = condition.filter(inputs);
 
 				DefaultListModel<Stock> listModel = (DefaultListModel<Stock>) stocksList.getModel();
-				List<Stock> inputs = new ArrayList<>();
-				for (int i = 0; i < listModel.getSize(); i++) {
-					inputs.add(listModel.get(i));
-				}
-				List<Stock> outputs = condition.filter(inputs);
 				if (!outputs.isEmpty()) {
+					HistoryItem historyItem = generateHistory(condition, inputs);
+					historyManager.addHistory(historyItem);
 					listModel.removeAllElements();
 					for (Stock stock : outputs) {
 						listModel.addElement(stock);
@@ -508,5 +465,86 @@ public class GUI {
 		filterPanel.add(loadButton);
 		filterPanel.add(filterButton);
 		return filterPanel;
+	}
+
+	private FilterCondition generateFilterCondition() throws TimeUnitException, DateException {
+		FilterCondition condition = new FilterCondition();
+		if (dayRadioButton.isSelected()) {
+			condition.setLineType(LineType.DAY);
+		} else if (weekRadioButton.isSelected()) {
+			condition.setLineType(LineType.WEEK);
+		} else if (monthRadioButton.isSelected()) {
+			condition.setLineType(LineType.MONTH);
+		} else {
+			throw new TimeUnitException();
+		}
+
+		String yearStr = (String) yearComboBox.getSelectedItem();
+		int year = Integer.parseInt(yearStr);
+		String monthStr = (String) monthComboBox.getSelectedItem();
+		int month = Integer.parseInt(monthStr);
+		String dayStr = (String) dayComboBox.getSelectedItem();
+		int day = Integer.parseInt(dayStr);
+		if (!dataParser.isLegalTradingDate(year, month, day)) {
+			throw new DateException();
+		}
+		TradingDate date = new TradingDate(year, month, day);
+		condition.setDate(date);
+
+		if (longPositionRadioButton.isSelected()) {
+			condition.setPositionType(PositionType.LONG);
+			List<Integer> positions = new ArrayList<Integer>();
+			for (int i = 0; i < 4; i++) {
+				String s = longPositionTextFields[i].getText();
+				if (Utils.isInt(s)) {
+					positions.add(Integer.parseInt(s));
+				}
+			}
+			condition.setPositions(positions);
+		} else if (shortPositionRadioButton.isSelected()) {
+			condition.setPositionType(PositionType.SHORT);
+			List<Integer> positions = new ArrayList<Integer>();
+			for (int i = 0; i < 4; i++) {
+				String s = shortPositionTextFields[i].getText();
+				if (Utils.isInt(s)) {
+					positions.add(Integer.parseInt(s));
+				}
+			}
+			condition.setPositions(positions);
+		} else {
+			condition.setPositionType(PositionType.NONE);
+			condition.setPositions(new ArrayList<Integer>());
+		}
+
+		String s = lowerBoundTextField.getText();
+		if (Utils.isDouble(s)) {
+			condition.setLowerLimit(Double.parseDouble(s));
+		} else {
+			condition.setLowerLimit(Double.NEGATIVE_INFINITY);
+		}
+
+		s = upperBoundTextField.getText();
+		if (Utils.isDouble(s)) {
+			condition.setUpperLimit(Double.parseDouble(s));
+		} else {
+			condition.setUpperLimit(Double.POSITIVE_INFINITY);
+		}
+		return condition;
+	}
+
+	private List<Stock> collectStocksList() {
+		List<Stock> stocks = new ArrayList<>();
+		DefaultListModel<Stock> listModel = (DefaultListModel<Stock>) stocksList.getModel();
+		for (int i = 0; i < listModel.getSize(); i++) {
+			stocks.add(listModel.get(i));
+		}
+		return stocks;
+	}
+
+	private HistoryItem generateHistory(FilterCondition condition, List<Stock> list) {
+		HistoryItem item = new HistoryItem();
+		item.setCondition(condition);
+		item.setStocks(list);
+		return item;
 	}
 }

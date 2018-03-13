@@ -45,4 +45,6 @@ def exactStock(fileName, code):
           
     return items  
   
-print(exactStock('/Users/andimeo/Downloads/vipdoc/sh/lday/sh600538.day', '600538')[0])
+import sys
+code = sys.argv[1]
+print(exactStock('/Users/ylu/Downloads/vipdoc/sz/lday/sz%s.day' % code, code)[0])

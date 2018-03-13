@@ -1,21 +1,27 @@
 package me.andimeo;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 public class HistoryManager {
-	private Map<Integer, HistoryItem> map;
+	private List<HistoryItem> history;
 
 	public HistoryManager() {
-		map = new HashMap<Integer, HistoryItem>();
+		history = new ArrayList<>();
 	}
 
-	public Map<Integer, HistoryItem> getMap() {
-		return map;
+	public void addHistory(HistoryItem item) {
+		history.add(item);
 	}
 
-	public void setMap(Map<Integer, HistoryItem> map) {
-		this.map = map;
+	public HistoryItem getHistory(int index) {
+		if (index >= history.size()) {
+			return null;
+		}
+		return history.get(index);
 	}
 
+	public int size() {
+		return history.size();
+	}
 }

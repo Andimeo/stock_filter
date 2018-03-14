@@ -24,4 +24,8 @@ public class HistoryManager {
 	public int size() {
 		return history.size();
 	}
+	
+	public void truncate(int index) {
+		history.subList(index, history.size()).clear();
+	}
 }

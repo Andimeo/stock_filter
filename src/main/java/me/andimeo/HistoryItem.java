@@ -21,4 +21,5 @@ public class HistoryItem {
 	public void setStocks(List<Stock> stocks) {
 		this.stocks = stocks;
 	}
+
 }

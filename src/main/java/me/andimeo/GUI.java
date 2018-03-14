@@ -2,7 +2,6 @@ package me.andimeo;
 
 import java.awt.BorderLayout;
 import java.awt.Component;
-import java.awt.Dimension;
 import java.awt.EventQueue;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
@@ -15,9 +14,9 @@ import java.util.List;
 import java.util.Set;
 
 import javax.swing.ButtonGroup;
+import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
-import javax.swing.DefaultListSelectionModel;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
@@ -29,11 +28,8 @@ import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
-import javax.swing.ListSelectionModel;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
-import javax.swing.event.ListSelectionEvent;
-import javax.swing.event.ListSelectionListener;
 
 import me.andimeo.FilterCondition.LineType;
 import me.andimeo.FilterCondition.PositionType;
@@ -46,13 +42,15 @@ public class GUI {
 	private CodeStockMap codeStockMap;
 
 	// stocks components
-	JComboBox<Integer> historyComboBox;
-	JList<Stock> stocksList;
+	private JComboBox<String> historyComboBox;
+	private JList<Stock> stocksList;
+	private List<Stock> currentStocks;
+	private JLabel totalLabel;
 
 	// time unit inputs
-	JRadioButton dayRadioButton;
-	JRadioButton weekRadioButton;
-	JRadioButton monthRadioButton;
+	private JRadioButton dayRadioButton;
+	private JRadioButton weekRadioButton;
+	private JRadioButton monthRadioButton;
 
 	// data source inputs
 	private JComboBox<String> dataSourceComboBox;
@@ -107,6 +105,8 @@ public class GUI {
 		dataParser = new DataParser();
 		historyManager = new HistoryManager();
 		codeStockMap = CodeStockMap.instance();
+		currentStocks = new ArrayList<>();
+		totalLabel = new JLabel();
 
 		dataSourceComboBox = new JComboBox<>();
 
@@ -186,7 +186,7 @@ public class GUI {
 
 	private JPanel centerPanel() {
 		JPanel centerPanel = new JPanel();
-		centerPanel.setLayout(new GridLayout(1, 2));
+		centerPanel.setLayout(new GridLayout(1, 3));
 		centerPanel.add(leftPanel());
 		centerPanel.add(rightPanel());
 		return centerPanel;
@@ -197,28 +197,34 @@ public class GUI {
 		leftPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
 		leftPanel.setLayout(new BorderLayout(10, 0));
 
-		historyList = new JList<>();
-		historyList.setSelectionMode(DefaultListSelectionModel.SINGLE_SELECTION);
-		historyList.setPreferredSize(new Dimension(50, -1));
-		DefaultListModel<Integer> listModel = new DefaultListModel<>();
-		historyList.setModel(listModel);
-		ListSelectionModel model = historyList.getSelectionModel();
-		model.addListSelectionListener(new ListSelectionListener() {
+		JPanel top = new JPanel();
+		top.setLayout(new FlowLayout(FlowLayout.LEFT));
+		
+		historyComboBox = new JComboBox<>();
+		DefaultComboBoxModel<String> comboBoxModel = new DefaultComboBoxModel<>();
+		comboBoxModel.addElement("当前");
+		comboBoxModel.setSelectedItem("当前");
+		historyComboBox.setModel(comboBoxModel);
+		historyComboBox.addActionListener(new ActionListener() {
 			@Override
-			public void valueChanged(ListSelectionEvent e) {
-				if (!e.getValueIsAdjusting()) {
-					System.out.println("event index: " + historyList.getSelectedIndex());
-					int index = historyList.getSelectedIndex();
+			public void actionPerformed(ActionEvent e) {
+				if (historyComboBox.getSelectedIndex() == -1) {
+					return;
+				}
+				if (historyComboBox.getSelectedItem().equals("当前")) {
+					updateStockJList(currentStocks);
+				} else {
+					int index = historyComboBox.getSelectedIndex();
 					HistoryItem item = historyManager.getHistory(index);
-					updateFilterConditionPanel(item.getCondition());
 					updateStockJList(item.getStocks());
+					updateFilterConditionPanel(item.getCondition());
 				}
 			}
-
 		});
-		JScrollPane batchesScrollPane = new JScrollPane(historyList);
-		leftPanel.add(batchesScrollPane, BorderLayout.WEST);
-		batchesScrollPane.setPreferredSize(new Dimension(50, -1));
+		top.add(historyComboBox);
+		top.add(totalLabel);
+		
+		leftPanel.add(top, BorderLayout.NORTH);
 
 		stocksList = new JList<>();
 		stocksList.setCellRenderer(new DefaultListCellRenderer() {
@@ -252,7 +258,7 @@ public class GUI {
 		JButton clearButton = new JButton("清空");
 		JButton saveButton = new JButton("保存");
 		JButton loadButton = new JButton("添加");
-
+		
 		bottomPanel.add(clearButton);
 		bottomPanel.add(saveButton);
 		bottomPanel.add(dataSourceComboBox);
@@ -272,7 +278,6 @@ public class GUI {
 		loadButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				DefaultListModel<Stock> listModel = (DefaultListModel<Stock>) stocksList.getModel();
 				List<Stock> stocks;
 				if (dataSourceComboBox.getSelectedIndex() == 0) {
 					stocks = dataParser.getAllStocks();
@@ -283,9 +288,7 @@ public class GUI {
 				} else {
 					stocks = new ArrayList<>();
 				}
-				for (Stock stock : stocks) {
-					listModel.addElement(stock);
-				}
+				updateStockJList(stocks);
 			}
 		});
 
@@ -438,12 +441,13 @@ public class GUI {
 
 				if (!outputs.isEmpty()) {
 					HistoryItem historyItem = generateHistory(condition, inputs);
-					if (!historyList.isSelectionEmpty()) {
-						historyManager.truncate(historyList.getSelectedIndex() + 1);
-					}
+					int index = historyComboBox.getSelectedIndex();
+					historyManager.truncate(index);
 					historyManager.addHistory(historyItem);
-					updateHistoryJList();
+					updateHistoryJComboBox();
 					updateStockJList(outputs);
+					currentStocks.clear();
+					currentStocks.addAll(outputs);
 				} else {
 					JOptionPane.showMessageDialog(frame, "没有符合条件的股票");
 				}
@@ -538,19 +542,14 @@ public class GUI {
 		return item;
 	}
 
-	private void updateHistoryJList() {
-		DefaultListModel<Integer> listModel = null;
-		if (historyList.getModel() == null) {
-			listModel = new DefaultListModel<>();
-			historyList.setModel(listModel);
-		} else {
-			listModel = (DefaultListModel<Integer>) historyList.getModel();
-		}
-		listModel.clear();
+	private void updateHistoryJComboBox() {
+		DefaultComboBoxModel<String> comboBoxModel = (DefaultComboBoxModel<String>) historyComboBox.getModel();
+		comboBoxModel.removeAllElements();
 		for (int i = 0; i < historyManager.size(); i++) {
-			listModel.addElement(i + 1);
+			comboBoxModel.addElement(String.valueOf(i + 1));
 		}
-		historyList.clearSelection();
+		comboBoxModel.addElement("当前");
+		comboBoxModel.setSelectedItem("当前");
 	}
 
 	private void updateStockJList(List<Stock> stocks) {
@@ -559,6 +558,7 @@ public class GUI {
 		for (Stock stock : stocks) {
 			listModel.addElement(stock);
 		}
+		totalLabel.setText("股票池数量: " + stocks.size());
 	}
 
 	private void updateFilterConditionPanel(FilterCondition condition) {

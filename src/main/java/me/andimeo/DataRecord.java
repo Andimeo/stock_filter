@@ -54,7 +54,7 @@ public class DataRecord {
 
 			// amount
 			double v = toDouble(bytes, offset + 20, 4);
-			record.setAmount(v / 10.0);
+			record.setAmount(v / 10000.);
 
 			// volume
 			value = toInt(bytes, offset + 24, 4);

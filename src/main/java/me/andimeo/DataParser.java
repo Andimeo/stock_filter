@@ -7,8 +7,10 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -62,8 +64,13 @@ class TradingDate {
 
 public class DataParser {
 	private List<Stock> stocks = new ArrayList<>();
+	private Map<String, Stock> map = new HashMap<>();
 	private Set<TradingDate> tradingDates = new HashSet<TradingDate>();
 	private TradingDate lastDate;
+
+	public Stock getStockByCode(String code) {
+		return map.get(code);
+	}
 
 	public TradingDate getLastDate() {
 		return lastDate;
@@ -104,7 +111,24 @@ public class DataParser {
 	}
 
 	public List<Stock> getAllStocks() {
-		return stocks;
+		return stocks.stream().filter(stock -> stock.isShangHaiA() || stock.isShangHaiB() || stock.isShenZhenA()
+				|| stock.isShenZhenB() || stock.isXiaopan()).collect(Collectors.toList());
+	}
+
+	public List<Stock> getShangHaiA() {
+		return stocks.stream().filter(stock -> stock.isShangHaiA()).collect(Collectors.toList());
+	}
+
+	public List<Stock> getShenZhenA() {
+		return stocks.stream().filter(stock -> stock.isShenZhenA() || stock.isXiaopan()).collect(Collectors.toList());
+	}
+
+	public List<Stock> getB() {
+		return stocks.stream().filter(stock -> stock.isShangHaiB() || stock.isShenZhenB()).collect(Collectors.toList());
+	}
+
+	public List<Stock> getXiaopan() {
+		return stocks.stream().filter(stock -> stock.isXiaopan()).collect(Collectors.toList());
 	}
 
 	private int parseLday(File dataDir) throws IOException {
@@ -121,6 +145,7 @@ public class DataParser {
 			List<DataRecord> list = DataRecord.from(content);
 			Stock stock = new Stock(market, code, list);
 			stocks.add(stock);
+			map.put(stock.getCode(), stock);
 		}
 		return files.length;
 	}

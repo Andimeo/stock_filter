@@ -10,6 +10,7 @@ import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -30,6 +31,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
+import javax.swing.filechooser.FileNameExtensionFilter;
 
 import me.andimeo.FilterCondition.LineType;
 import me.andimeo.FilterCondition.PositionType;
@@ -40,11 +42,14 @@ public class GUI {
 	private DataParser dataParser;
 	private HistoryManager historyManager;
 	private CodeStockMap codeStockMap;
+	private Template template;
+	private LineType lineType;
+	private PositionType positionType;
 
 	// stocks components
 	private JComboBox<String> historyComboBox;
 	private JList<Stock> stocksList;
-	private List<Stock> currentStocks;
+	private Set<Stock> currentStocks;
 	private JLabel totalLabel;
 
 	// time unit inputs
@@ -105,8 +110,11 @@ public class GUI {
 		dataParser = new DataParser();
 		historyManager = new HistoryManager();
 		codeStockMap = CodeStockMap.instance();
-		currentStocks = new ArrayList<>();
+		template = new Template();
+		currentStocks = new LinkedHashSet<>();
 		totalLabel = new JLabel();
+		lineType = null;
+		positionType = PositionType.NONE;
 
 		dataSourceComboBox = new JComboBox<>();
 
@@ -199,7 +207,7 @@ public class GUI {
 
 		JPanel top = new JPanel();
 		top.setLayout(new FlowLayout(FlowLayout.LEFT));
-		
+
 		historyComboBox = new JComboBox<>();
 		DefaultComboBoxModel<String> comboBoxModel = new DefaultComboBoxModel<>();
 		comboBoxModel.addElement("当前");
@@ -212,18 +220,20 @@ public class GUI {
 					return;
 				}
 				if (historyComboBox.getSelectedItem().equals("当前")) {
-					updateStockJList(currentStocks);
+					updateStockJList();
 				} else {
 					int index = historyComboBox.getSelectedIndex();
 					HistoryItem item = historyManager.getHistory(index);
-					updateStockJList(item.getStocks());
+					currentStocks.clear();
+					currentStocks.addAll(item.getStocks());
+					updateStockJList();
 					updateFilterConditionPanel(item.getCondition());
 				}
 			}
 		});
 		top.add(historyComboBox);
 		top.add(totalLabel);
-		
+
 		leftPanel.add(top, BorderLayout.NORTH);
 
 		stocksList = new JList<>();
@@ -236,7 +246,8 @@ public class GUI {
 				Component renderer = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
 				if (renderer instanceof JLabel && value instanceof Stock) {
 					Stock stock = (Stock) value;
-					String text = stock.getCode() + "\t" + codeStockMap.getStockName(stock.getCode());
+					String text = "<html><pre> " + stock.getCode() + "        "
+							+ codeStockMap.getStockName(stock.getCode()) + "</pre></html>";
 					((JLabel) renderer).setText(text);
 				}
 				return renderer;
@@ -251,14 +262,16 @@ public class GUI {
 		JPanel bottomPanel = new JPanel();
 		bottomPanel.setLayout(new FlowLayout());
 		dataSourceComboBox.addItem("载入所有数据");
-		dataSourceComboBox.addItem("载入沪市数据");
-		dataSourceComboBox.addItem("载入深市数据");
+		dataSourceComboBox.addItem("载入沪市A股");
+		dataSourceComboBox.addItem("载入深市A股");
+		dataSourceComboBox.addItem("载入B股数据");
+		dataSourceComboBox.addItem("载入中小创数据");
 		dataSourceComboBox.addItem("载入自定义数据");
 
 		JButton clearButton = new JButton("清空");
 		JButton saveButton = new JButton("保存");
 		JButton loadButton = new JButton("添加");
-		
+
 		bottomPanel.add(clearButton);
 		bottomPanel.add(saveButton);
 		bottomPanel.add(dataSourceComboBox);
@@ -273,31 +286,86 @@ public class GUI {
 				currentStocks.clear();
 			}
 		});
-		// TODO: save
 
+		// save
+		saveButton.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				JFileChooser fileChooser = new JFileChooser();
+				fileChooser.setCurrentDirectory(new File("."));
+				fileChooser.setDialogTitle("选择目录");
+				FileNameExtensionFilter filter = new FileNameExtensionFilter("Stock Filter", "sf");
+				fileChooser.setFileFilter(filter);
+				fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+				int returnVal = fileChooser.showSaveDialog(frame);
+				if (returnVal == JFileChooser.APPROVE_OPTION) {
+					File file = fileChooser.getSelectedFile();
+					if (!file.getAbsolutePath().endsWith("sf")) {
+						file = new File(file + ".sf");
+					}
+					Set<String> codes = new LinkedHashSet<>();
+					currentStocks.stream().forEach(stock -> {
+						codes.add(stock.getCode());
+					});
+					try {
+						StockSerializer.serialize(file, codes);
+						JOptionPane.showMessageDialog(frame, "保存成功");
+					} catch (IOException e1) {
+						e1.printStackTrace();
+					}
+				}
+			}
+
+		});
 		// load
 		loadButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-			        List<Stock> stocks;
+				List<Stock> stocks;
 				if (dataSourceComboBox.getSelectedIndex() == 0) {
 					stocks = dataParser.getAllStocks();
 				} else if (dataSourceComboBox.getSelectedIndex() == 1) {
-					stocks = dataParser.getStocksFromSpecificMarket("sh");
+					stocks = dataParser.getShangHaiA();
 				} else if (dataSourceComboBox.getSelectedIndex() == 2) {
-					stocks = dataParser.getStocksFromSpecificMarket("sz");
+					stocks = dataParser.getShenZhenA();
+				} else if (dataSourceComboBox.getSelectedIndex() == 3) {
+					stocks = dataParser.getB();
+				} else if (dataSourceComboBox.getSelectedIndex() == 4) {
+					stocks = dataParser.getXiaopan();
 				} else {
+					JFileChooser fileChooser = new JFileChooser();
+					fileChooser.setCurrentDirectory(new File("."));
+					fileChooser.setDialogTitle("选择目录");
+					FileNameExtensionFilter filter = new FileNameExtensionFilter("Stock Filter", "sf");
+					fileChooser.setFileFilter(filter);
+					fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+					fileChooser.setAcceptAllFileFilterUsed(false);
 					stocks = new ArrayList<>();
+					int returnVal = fileChooser.showOpenDialog(frame);
+					if (returnVal == JFileChooser.APPROVE_OPTION) {
+						File file = fileChooser.getSelectedFile();
+						try {
+							Set<String> codes = new LinkedHashSet<>();
+							StockSerializer.deserialize(file, codes);
+							codes.stream().forEach(code -> {
+								stocks.add(dataParser.getStockByCode(code));
+							});
+						} catch (IOException e1) {
+							stocks.clear();
+							e1.printStackTrace();
+						}
+					}
 				}
 				currentStocks.addAll(stocks);
-				updateStockJList(currentStocks);
+				updateStockJList();
+				JOptionPane.showMessageDialog(frame, "载入自定义数据成功");
 			}
 		});
 
 		bottomPanel.add(clearButton);
-		bottomPanel.add(saveButton);
 		bottomPanel.add(dataSourceComboBox);
 		bottomPanel.add(loadButton);
+		bottomPanel.add(saveButton);
 		leftPanel.add(bottomPanel, BorderLayout.SOUTH);
 		return leftPanel;
 	}
@@ -327,6 +395,30 @@ public class GUI {
 		buttonGroup.add(dayRadioButton);
 		buttonGroup.add(weekRadioButton);
 		buttonGroup.add(monthRadioButton);
+		dayRadioButton.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				updateTemplate();
+				updatePositionsByTemplate(LineType.DAY);
+				lineType = LineType.DAY;
+			}
+		});
+		weekRadioButton.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				updateTemplate();
+				updatePositionsByTemplate(LineType.WEEK);
+				lineType = LineType.WEEK;
+			}
+		});
+		monthRadioButton.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				updateTemplate();
+				updatePositionsByTemplate(LineType.MONTH);
+				lineType = LineType.MONTH;
+			}
+		});
 		timeUnitPanel.add(dayRadioButton);
 		timeUnitPanel.add(weekRadioButton);
 		timeUnitPanel.add(monthRadioButton);
@@ -368,22 +460,33 @@ public class GUI {
 		positionComboBox.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent arg0) {
+				updateTemplate();
 				if (positionComboBox.getSelectedIndex() != 2) {
 					String text = "<";
+					positionType = PositionType.SHORT;
 					if (positionComboBox.getSelectedIndex() == 0) {
 						text = ">";
+						positionType = PositionType.LONG;
 					}
 					for (int i = 0; i < POSITION_NUM; i++) {
+						Integer value = template.get(lineType, positionType, i);
 						positionTextFields[i].setEditable(true);
 						positionLabels[i].setText(text);
+						if (value == null) {
+							positionTextFields[i].setText("");
+						} else {
+							positionTextFields[i].setText("" + value);
+						}
 					}
 				} else {
 					for (int i = 0; i < POSITION_NUM; i++) {
 						positionLabels[i].setText("");
 					}
 					for (int i = 0; i < POSITION_NUM; i++) {
+						positionTextFields[i].setText("");
 						positionTextFields[i].setEditable(false);
 					}
+					positionType = PositionType.NONE;
 				}
 			}
 		});
@@ -396,15 +499,17 @@ public class GUI {
 		JPanel turnoverPanel = new JPanel();
 		turnoverPanel.setLayout(new FlowLayout());
 
-		TitledBorder border = new TitledBorder("成交额");
+		TitledBorder border = new TitledBorder("成交额（万元）");
 		turnoverPanel.setBorder(border);
 
 		JLabel lowerBoundLabel = new JLabel("下界");
+		lowerBoundLabel.setToolTipText("为空时代表无最低金额约束");
 		turnoverPanel.add(lowerBoundLabel);
 		turnoverPanel.add(lowerBoundTextField);
 		lowerBoundTextField.setColumns(5);
 
 		JLabel upperBoundLabel = new JLabel("上界");
+		upperBoundLabel.setToolTipText("为空时代表无最高金额约束");
 		turnoverPanel.add(upperBoundLabel);
 		turnoverPanel.add(upperBoundTextField);
 		upperBoundTextField.setColumns(5);
@@ -415,15 +520,59 @@ public class GUI {
 		JPanel filterPanel = new JPanel();
 		filterPanel.setLayout(new FlowLayout());
 
-		JButton saveButton = new JButton("保存");
-		JButton loadButton = new JButton("载入");
+		JButton saveButton = new JButton("保存模版");
+		JButton loadButton = new JButton("载入模版");
 		JButton filterButton = new JButton("筛选");
 
-		// TODO: save
+		saveButton.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				JFileChooser fileChooser = new JFileChooser();
+				fileChooser.setCurrentDirectory(new File("."));
+				fileChooser.setDialogTitle("选择目录");
+				FileNameExtensionFilter filter = new FileNameExtensionFilter("Stock Filter Template", "sft");
+				fileChooser.setFileFilter(filter);
+				fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+				int returnVal = fileChooser.showSaveDialog(frame);
+				if (returnVal == JFileChooser.APPROVE_OPTION) {
+					File file = fileChooser.getSelectedFile();
+					if (!file.getAbsolutePath().endsWith("sft")) {
+						file = new File(file + ".sft");
+					}
+					try {
+						template.serialize(file);
+						JOptionPane.showMessageDialog(frame, "保存成功");
+					} catch (IOException e3) {
+						e3.printStackTrace();
+						return;
+					}
+				}
+			}
 
-		// TODO: load
+		});
 
-		// TODO: filter
+		loadButton.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				JFileChooser fileChooser = new JFileChooser();
+				fileChooser.setCurrentDirectory(new File("."));
+				fileChooser.setDialogTitle("选择目录");
+				FileNameExtensionFilter filter = new FileNameExtensionFilter("Stock Filter Template", "sft");
+				fileChooser.setFileFilter(filter);
+				fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+				fileChooser.setAcceptAllFileFilterUsed(false);
+				int returnVal = fileChooser.showOpenDialog(frame);
+				if (returnVal == JFileChooser.APPROVE_OPTION) {
+					File file = fileChooser.getSelectedFile();
+					try {
+						template.deserialize(file);
+					} catch (IOException e1) {
+						e1.printStackTrace();
+					}
+				}
+			}
+		});
+
 		filterButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent event) {
@@ -447,9 +596,10 @@ public class GUI {
 					historyManager.truncate(index);
 					historyManager.addHistory(historyItem);
 					updateHistoryJComboBox();
-					updateStockJList(outputs);
 					currentStocks.clear();
 					currentStocks.addAll(outputs);
+					updateStockJList();
+
 				} else {
 					JOptionPane.showMessageDialog(frame, "没有符合条件的股票");
 				}
@@ -551,18 +701,22 @@ public class GUI {
 			comboBoxModel.removeElementAt(0);
 		}
 		for (int i = 0; i < historyManager.size(); i++) {
-			comboBoxModel.insertElementAt(String.valueOf(i + 1), i);
+			StringBuilder sb = new StringBuilder();
+			sb.append("<html><pre>");
+			sb.append(String.format("%d (%d)", i + 1, historyManager.getHistory(i).getStocks().size()));
+			sb.append("</pre></html>");
+			comboBoxModel.insertElementAt(sb.toString(), i);
 		}
 		comboBoxModel.setSelectedItem("当前");
 	}
 
-	private void updateStockJList(List<Stock> stocks) {
+	private void updateStockJList() {
 		DefaultListModel<Stock> listModel = (DefaultListModel<Stock>) stocksList.getModel();
 		listModel.removeAllElements();
-		for (Stock stock : stocks) {
+		for (Stock stock : currentStocks) {
 			listModel.addElement(stock);
 		}
-		totalLabel.setText("股票池数量: " + stocks.size());
+		totalLabel.setText("股票池数量: " + currentStocks.size());
 	}
 
 	private void updateFilterConditionPanel(FilterCondition condition) {
@@ -590,12 +744,18 @@ public class GUI {
 			for (int i = 0; i < longPositions.size(); i++) {
 				positionTextFields[i].setText(String.valueOf(longPositions.get(i)));
 			}
+			for (int i = longPositions.size(); i < POSITION_NUM; i++) {
+				positionTextFields[i].setText("");
+			}
 			break;
 		case SHORT:
 			positionComboBox.setSelectedIndex(1);
 			List<Integer> shortPositions = condition.getPositions();
 			for (int i = 0; i < shortPositions.size(); i++) {
 				positionTextFields[i].setText(String.valueOf(shortPositions.get(i)));
+			}
+			for (int i = shortPositions.size(); i < POSITION_NUM; i++) {
+				positionTextFields[i].setText("");
 			}
 			break;
 		case NONE:
@@ -615,6 +775,42 @@ public class GUI {
 			upperBoundTextField.setText("");
 		} else {
 			upperBoundTextField.setText(String.valueOf(upperLimit));
+		}
+	}
+
+	private void updateTemplate() {
+		if (lineType != null && positionType != PositionType.NONE) {
+			for (int i = 0; i < POSITION_NUM; i++) {
+				template.set(lineType, positionType, i, null);
+			}
+			for (int i = 0; i < POSITION_NUM; i++) {
+				Integer value;
+				String v = positionTextFields[i].getText();
+				try {
+					value = Integer.parseInt(v);
+				} catch (NumberFormatException e1) {
+					value = null;
+				}
+				if (value == null) {
+					break;
+				}
+				template.set(lineType, positionType, i, value);
+			}
+		}
+	}
+
+	private void updatePositionsByTemplate(LineType lineType) {
+		if (positionType == PositionType.NONE) {
+			return;
+		}
+
+		for (int i = 0; i < POSITION_NUM; i++) {
+			String text = "";
+			Integer value = template.get(lineType, positionType, i);
+			if (value != null) {
+				text = "" + value;
+			}
+			positionTextFields[i].setText(text);
 		}
 	}
 }

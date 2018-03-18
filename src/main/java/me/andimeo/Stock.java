@@ -13,6 +13,36 @@ public class Stock {
 	private List<TradingDate> weekDate = new ArrayList<>();
 	private List<TradingDate> monthDate = new ArrayList<>();
 
+	public boolean isShangHaiA() {
+		return market.equals("sh") && code.startsWith("6");
+	}
+
+	public boolean isShangHaiB() {
+		return market.equals("sh") && code.startsWith("9");
+	}
+
+	public boolean isShenZhenA() {
+		return market.equals("sz") && (code.startsWith("000") || code.equals("001696") || code.equals("001896"));
+	}
+
+	public boolean isShenZhenB() {
+		return market.equals("sz") && code.startsWith("200");
+	}
+
+	public boolean isXiaopan() {
+		int code = Integer.parseInt(this.code);
+		return market.equals("sz") && (code >= 2001 && code <= 4999);
+	}
+
+	public int hashCode() {
+		return (code + market).hashCode();
+	}
+
+	public boolean equals(Object o) {
+		Stock stock = (Stock) o;
+		return stock.code.equals(this.code);
+	}
+
 	public List<TradingDate> getWeekDate() {
 		return weekDate;
 	}

@@ -270,6 +270,7 @@ public class GUI {
 			public void actionPerformed(ActionEvent e) {
 				DefaultListModel<Stock> listModel = (DefaultListModel<Stock>) stocksList.getModel();
 				listModel.removeAllElements();
+				currentStocks.clear();
 			}
 		});
 		// TODO: save
@@ -278,7 +279,7 @@ public class GUI {
 		loadButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				List<Stock> stocks;
+			        List<Stock> stocks;
 				if (dataSourceComboBox.getSelectedIndex() == 0) {
 					stocks = dataParser.getAllStocks();
 				} else if (dataSourceComboBox.getSelectedIndex() == 1) {
@@ -288,7 +289,8 @@ public class GUI {
 				} else {
 					stocks = new ArrayList<>();
 				}
-				updateStockJList(stocks);
+				currentStocks.addAll(stocks);
+				updateStockJList(currentStocks);
 			}
 		});
 
@@ -544,11 +546,13 @@ public class GUI {
 
 	private void updateHistoryJComboBox() {
 		DefaultComboBoxModel<String> comboBoxModel = (DefaultComboBoxModel<String>) historyComboBox.getModel();
-		comboBoxModel.removeAllElements();
-		for (int i = 0; i < historyManager.size(); i++) {
-			comboBoxModel.addElement(String.valueOf(i + 1));
+		int size = comboBoxModel.getSize();
+		for (int i = 0; i < size - 1; i++) {
+			comboBoxModel.removeElementAt(0);
 		}
-		comboBoxModel.addElement("当前");
+		for (int i = 0; i < historyManager.size(); i++) {
+			comboBoxModel.insertElementAt(String.valueOf(i + 1), i);
+		}
 		comboBoxModel.setSelectedItem("当前");
 	}
 

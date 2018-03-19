@@ -61,6 +61,8 @@ public class GUI {
 	private JComboBox<String> dataSourceComboBox;
 
 	// date inputs
+	private JComboBox<Integer> durationComboBox;
+	private JLabel durationLabel;
 	private JComboBox<String> yearComboBox;
 	private JComboBox<String> monthComboBox;
 	private JComboBox<String> dayComboBox;
@@ -118,6 +120,11 @@ public class GUI {
 
 		dataSourceComboBox = new JComboBox<>();
 
+		durationComboBox = new JComboBox<>();
+		for (int i = 0; i < 20; i++) {
+			durationComboBox.insertItemAt(i + 1, i);
+		}
+		durationLabel = new JLabel("筛选天数");
 		yearComboBox = new JComboBox<>();
 		monthComboBox = new JComboBox<>();
 		dayComboBox = new JComboBox<>();
@@ -395,12 +402,16 @@ public class GUI {
 		buttonGroup.add(dayRadioButton);
 		buttonGroup.add(weekRadioButton);
 		buttonGroup.add(monthRadioButton);
+		dayRadioButton.setSelected(true);
+		lineType = LineType.DAY;
 		dayRadioButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				updateTemplate();
 				updatePositionsByTemplate(LineType.DAY);
 				lineType = LineType.DAY;
+				durationComboBox.setVisible(true);
+				durationLabel.setVisible(true);
 			}
 		});
 		weekRadioButton.addActionListener(new ActionListener() {
@@ -409,6 +420,8 @@ public class GUI {
 				updateTemplate();
 				updatePositionsByTemplate(LineType.WEEK);
 				lineType = LineType.WEEK;
+				durationComboBox.setVisible(false);
+				durationLabel.setVisible(false);
 			}
 		});
 		monthRadioButton.addActionListener(new ActionListener() {
@@ -417,6 +430,8 @@ public class GUI {
 				updateTemplate();
 				updatePositionsByTemplate(LineType.MONTH);
 				lineType = LineType.MONTH;
+				durationComboBox.setVisible(false);
+				durationLabel.setVisible(false);
 			}
 		});
 		timeUnitPanel.add(dayRadioButton);
@@ -437,6 +452,8 @@ public class GUI {
 		datePanel.add(new JLabel("月"));
 		datePanel.add(dayComboBox);
 		datePanel.add(new JLabel("日"));
+		datePanel.add(durationComboBox);
+		datePanel.add(durationLabel);
 		return datePanel;
 	}
 
@@ -614,8 +631,10 @@ public class GUI {
 
 	private FilterCondition generateFilterCondition() throws TimeUnitException, DateException {
 		FilterCondition condition = new FilterCondition();
+		condition.setDuration(1);
 		if (dayRadioButton.isSelected()) {
 			condition.setLineType(LineType.DAY);
+			condition.setDuration((Integer) durationComboBox.getSelectedItem());
 		} else if (weekRadioButton.isSelected()) {
 			condition.setLineType(LineType.WEEK);
 		} else if (monthRadioButton.isSelected()) {
@@ -695,6 +714,7 @@ public class GUI {
 	}
 
 	private void updateHistoryJComboBox() {
+		historyComboBox.setSelectedIndex(-1);
 		DefaultComboBoxModel<String> comboBoxModel = (DefaultComboBoxModel<String>) historyComboBox.getModel();
 		int size = comboBoxModel.getSize();
 		for (int i = 0; i < size - 1; i++) {

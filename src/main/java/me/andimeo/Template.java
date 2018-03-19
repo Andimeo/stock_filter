@@ -12,7 +12,7 @@ import me.andimeo.FilterCondition.PositionType;
 
 public class Template {
 	// 日多，日空，周多，周空，月多，月空
-	private Integer positions[] = new Integer[36];
+	private Integer positions[] = new Integer[24];
 
 	public Template() {
 		for (int i = 0; i < 24; i++) {

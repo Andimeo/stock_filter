@@ -11,6 +11,7 @@ public class FilterCondition {
 	private List<Integer> positions;
 	private double lowerLimit;
 	private double upperLimit;
+	private int duration;
 
 	enum LineType {
 		DAY, WEEK, MONTH
@@ -68,7 +69,14 @@ public class FilterCondition {
 				} else {
 					op = (a, b) -> (a < b);
 				}
-				if (!filterPosition(index, closePrice, op)) {
+				boolean isPassed = true;
+				for (int i = index; i > index - duration; i--) {
+					if (!filterPosition(i, closePrice, op)) {
+						isPassed = false;
+						break;
+					}
+				}
+				if (!isPassed) {
 					continue;
 				}
 			}
@@ -161,5 +169,13 @@ public class FilterCondition {
 
 	public void setDate(TradingDate date) {
 		this.date = date;
+	}
+
+	public int getDuration() {
+		return duration;
+	}
+
+	public void setDuration(int duration) {
+		this.duration = duration;
 	}
 }

@@ -70,7 +70,7 @@ public class FilterCondition {
 					op = (a, b) -> (a < b);
 				}
 				boolean isPassed = true;
-				for (int i = index; i > index - duration; i--) {
+				for (int i = index; i > Math.max(-1, index - duration); i--) {
 					if (!filterPosition(i, closePrice, op)) {
 						isPassed = false;
 						break;

@@ -124,6 +124,7 @@ public class GUI {
 		for (int i = 0; i < 20; i++) {
 			durationComboBox.insertItemAt(i + 1, i);
 		}
+		durationComboBox.setSelectedIndex(0);
 		durationLabel = new JLabel("筛选天数");
 		yearComboBox = new JComboBox<>();
 		monthComboBox = new JComboBox<>();
